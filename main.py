@@ -614,25 +614,47 @@ class JMBackend:
 
 def _extract_item_info(item):
     """从搜索结果中提取 id, title, author, page_count。兼容对象、dict 和 tuple。"""
-    # dict: {'id': ..., 'name': ..., 'author': ...}
-    if isinstance(item, dict):
-        aid = str(item.get('id', item.get('aid', item.get('album_id', '?'))))
-        title = str(item.get('name', item.get('title', '?')))[:40]
-        author = str(item.get('author', item.get('authors', '')))[:15]
-        pages = str(item.get('page_count', item.get('pages', item.get('count', '?'))))
-    # tuple: (id, title, author, ...)
-    elif isinstance(item, tuple):
-        aid = str(item[0]) if len(item) > 0 else '?'
-        title = str(item[1])[:40] if len(item) > 1 else '?'
-        author = str(item[2])[:15] if len(item) > 2 else ''
-        pages = '?'
-    # object: JmSearchAlbum / JmAlbumDetail
-    else:
-        aid = str(item.id if hasattr(item, 'id') else (item.aid if hasattr(item, 'aid') else '?'))
-        title = str(item.title if hasattr(item, 'title') else (item.name if hasattr(item, 'name') else '?'))[:40]
-        author = str(item.author if hasattr(item, 'author') else '')[:15]
-        pages = str(item.page_count) if hasattr(item, 'page_count') and item.page_count else (
-            str(len(item)) if hasattr(item, '__len__') else '?')
+    aid = title = author = pages = '?'
+
+    # 尝试作为 dict 处理（包括对象中内嵌的 __dict__）
+    d = item if isinstance(item, dict) else getattr(item, '__dict__', None)
+    if isinstance(d, dict):
+        aid = str(d.get('id', d.get('aid', d.get('album_id', '?'))))
+        title = str(d.get('name', d.get('title', '?')))
+        author = str(d.get('author', d.get('authors', '')))
+        pages = str(d.get('page_count', d.get('pages', d.get('count', '?'))))
+
+    # 尝试作为 tuple 处理
+    if isinstance(item, tuple):
+        aid = str(item[0]) if len(item) > 0 else aid
+        title = str(item[1]) if len(item) > 1 else title
+        author = str(item[2]) if len(item) > 2 else author
+
+    # 尝试从对象属性获取（覆盖 dict/tuple 中没取到的）
+    if aid in (None, '?', 'None'):
+        aid = str(getattr(item, 'id', getattr(item, 'aid', getattr(item, 'album_id', '?'))))
+    if title in (None, '?', 'None') or title.startswith('{'):
+        t = getattr(item, 'title', None) or getattr(item, 'name', None) or getattr(item, 'oname', None)
+        if t is not None:
+            t = str(t)
+            if not t.startswith('{'):
+                title = t
+    if author in (None, '?', 'None', ''):
+        a = getattr(item, 'author', None) or getattr(item, 'authors', None)
+        if a is not None:
+            a = str(a)
+            if not a.startswith('{'):
+                author = a
+    if pages in (None, '?', 'None', '0'):
+        p = getattr(item, 'page_count', None)
+        if p and p != 0:
+            pages = str(p)
+        elif hasattr(item, '__len__'):
+            pages = str(len(item))
+
+    title = str(title)[:40]
+    author = str(author)[:15]
+    pages = str(pages)
     return aid, title, author, pages
 
 
