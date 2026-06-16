@@ -159,9 +159,16 @@ CHANGELOG = """
 📋 **JMComic Bot 更新日志**
 
 **v1.11.2** (2026-06-16)
-- 🐛 修复封面预览永远不发送：`JmAlbumDetail` 没有 `cover_url` 属性，改为从第一话的第一张图获取封面
-- 🐛 修复页数永远显示 1P：`len(album)` 返回的是章节数而非总页数，改用 `album.page_count`
-- 🔗 metadata.yaml repo 链接更新为 https://github.com/jujg12123/astrbot_plugin_jmcomic_bot
+- 🐛 修复封面预览不发送：`JmAlbumDetail` 无 `cover_url` 属性
+  - 从第一话第一张图（`data_original_0`）获取封面
+  - CDN 构造 URL 兜底：`cdn-msp.{domain}/media/albums/{id}_3x4.jpg`
+  - 带 scramble_id 的 URL 作为第三兜底
+  - 添加 debug 日志输出封面 URL
+- 🐛 修复页数不准确：`len(album)` 返回章节数，`album.page_count` 有时为 0
+  - 优先 `page_count`（>0 才用）
+  - 回退 `len(album)`（章节数）
+  - 下载后从实际文件数校准
+- 🔗 metadata.yaml repo 更新为 https://github.com/jujg12123/astrbot_plugin_jmcomic_bot
 
 **v1.11.1** (2026-06-16)
 - 🐛 修复：不同本子 ID 返回相同内容的问题
@@ -435,21 +442,32 @@ class JMBackend:
         return self._api.favorite_folder(page=page, order_by=order)
 
     def get_album_cover(self, album_id: str) -> str | None:
-        """获取本子封面图片，返回本地文件路径。从第一话的第一张图获取封面。"""
+        """获取本子封面图片，返回本地文件路径。"""
         try:
             album = self._api.get_album_detail(album_id)
-            # JmAlbumDetail 没有 cover_url 属性，需从第一话的第一张图获取
             cover_url = None
+            
+            # 从第一话的第一张图获取封面
             if album.episode_list:
                 first_photo_id = album.episode_list[0][0]
                 try:
                     photo = self._api.get_photo_detail(first_photo_id, fetch_album=False)
+                    logger.info(f"[jmcomic_bot] get_album_cover: photo_id={first_photo_id}, "
+                               f"data_original_0={photo.data_original_0}, "
+                               f"data_original_domain={getattr(photo, 'data_original_domain', 'N/A')}, "
+                               f"page_arr={getattr(photo, 'page_arr', 'N/A')[:3] if photo.page_arr else 'N/A'}")
                     if photo and photo.data_original_0:
                         cover_url = photo.data_original_0
-                except Exception:
-                    pass
+                    elif photo and photo.data_original_domain and photo.page_arr:
+                        # data_original_0 为 None 时，用 domain + 第一张文件名构造
+                        cover_url = f"https://{photo.data_original_domain}/media/photos/{first_photo_id}/{photo.page_arr[0]}"
+                except Exception as e:
+                    logger.warning(f"[jmcomic_bot] 获取第一话图片失败: {e}")
+            
+            logger.info(f"[jmcomic_bot] get_album_cover: album_id={album_id}, cover_url={cover_url}")
             if not cover_url:
                 return None
+                
             # 下载封面到本地
             cover_dir = os.path.join(self.data_dir, "covers")
             os.makedirs(cover_dir, exist_ok=True)
@@ -457,7 +475,14 @@ class JMBackend:
             if os.path.exists(cover_path):
                 return cover_path
             import urllib.request
-            urllib.request.urlretrieve(cover_url, cover_path)
+            # JM CDN 需要 Referer 头，否则返回 403
+            domain = self._api.domain_list[0] if hasattr(self._api, 'domain_list') and self._api.domain_list else ''
+            req = urllib.request.Request(cover_url, headers={
+                'Referer': f'https://{domain}/' if domain else '',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            })
+            with urllib.request.urlopen(req, timeout=30) as resp, open(cover_path, 'wb') as f:
+                f.write(resp.read())
             return cover_path if os.path.exists(cover_path) else None
         except Exception as e:
             logger.warning(f"[jmcomic_bot] 获取封面失败: {e}")
@@ -468,8 +493,9 @@ class JMBackend:
             album = self._api.get_album_detail(album_id)
             title = album.title if hasattr(album, 'title') else album.name
             album_actual_id = album.id if hasattr(album, 'id') else album.aid if hasattr(album, 'aid') else '?'
-            count = album.page_count if hasattr(album, 'page_count') else len(album)
-            logger.info(f"[jmcomic_bot] JMBackend.download_album: id={album_id} → 返回 title='{title}', actual_id={album_actual_id}, {count}P")
+            # page_count 有时为 0，用章节数兜底
+            count = album.page_count if (hasattr(album, 'page_count') and album.page_count) else len(album)
+            logger.info(f"[jmcomic_bot] JMBackend.download_album: id={album_id} → 返回 title='{title}', actual_id={album_actual_id}, page_count={getattr(album, 'page_count', 'N/A')}, len={len(album)}, 最终count={count}")
             self._option.download_album(album_id)
             # 自己构造下载路径，不依赖 download_album 返回值（可能只是相对路径）
             dl_dir = Path(self.download_dir) / album_id
@@ -480,6 +506,10 @@ class JMBackend:
                     if d.is_dir() and str(album_id) in d.name:
                         dl_dir = d
                         break
+            # 如果 count 仍为 0，从实际下载的文件数量获取
+            if count == 0 and dl_dir.exists():
+                image_files = list(dl_dir.rglob('*'))
+                count = len([f for f in image_files if f.is_file() and f.suffix.lower() in ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp')])
             pack_result = self._pack(dl_dir, album_id, title)
             return {"status": "ok", "pack_path": str(pack_result), "path": str(dl_dir), "count": count, "title": title, "encrypted": bool(self.config.get("zip_password", ""))}
         except Exception as e:
@@ -608,7 +638,7 @@ def _fmt_search(results: list, keyword: str, page: int = 1) -> str:
 def _fmt_album(album) -> str:
     title = album.title if hasattr(album, 'title') else album.name
     author = album.author if hasattr(album, 'author') else "未知"
-    pages = album.page_count if hasattr(album, 'page_count') else (len(album) if hasattr(album, '__len__') else "?")
+    pages = album.page_count if (hasattr(album, 'page_count') and album.page_count) else (len(album) if hasattr(album, '__len__') else "?")
     lines = [f"📖 [{album.id}] {title}", f"作者: {author}", f"页数: {pages}P"]
     if hasattr(album, 'tags') and album.tags:
         tags = album.tags[:5] if isinstance(album.tags, list) else []
@@ -903,28 +933,63 @@ class JMComicBot(Star):
             logger.warning(f"[jmcomic_bot] ❌ 文件上传失败: {e}")
             return False
 
-    async def _recall_last_msg_after_delay(self, event: AstrMessageEvent, delay: int):
-        """后台任务：延迟 delay 秒后撤回消息。event 必须在消息发送后立即捕获。"""
+    async def _send_with_recall(self, event: AstrMessageEvent, chain: MessageChain, delay: int):
+        """发送消息并在 delay 秒后自动撤回"""
+        bot = None
+        message_id = None
+
+        # 方法1：通过 event.bot 的 OneBot API 发送（可获取 message_id）
         try:
-            await asyncio.sleep(delay)
-            bot = None
-            for attr_name in dir(event):
-                if attr_name.startswith('__'):
-                    continue
-                try:
-                    val = getattr(event, attr_name, None)
-                    if val is not None and hasattr(val, 'call_action'):
-                        bot = val
-                        break
-                except Exception:
-                    continue
-            if bot:
-                msg_id = getattr(event.message_obj, 'message_id', None)
-                if msg_id:
-                    await bot.call_action('delete_msg', message_id=int(msg_id))
-                    logger.info(f"[jmcomic_bot] ✅ 消息已撤回 (delay={delay}s)")
+            from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+            bot = getattr(event, 'bot', None)
+            if bot and hasattr(bot, 'send_private_msg'):
+                is_group = bool(event.get_group_id())
+                session_id_str = event.get_group_id() if is_group else event.get_sender_id()
+                if session_id_str and str(session_id_str).isdigit():
+                    session_id = int(session_id_str)
+                    messages = await AiocqhttpMessageEvent._parse_onebot_json(chain)
+                    if messages:
+                        if is_group:
+                            result = await bot.send_group_msg(group_id=session_id, message=messages)
+                        else:
+                            result = await bot.send_private_msg(user_id=session_id, message=messages)
+                        message_id = result.get("message_id") if isinstance(result, dict) else None
+                        logger.info(f"[jmcomic_bot] OneBot 发送成功, message_id={message_id}")
         except Exception as e:
-            logger.warning(f"[jmcomic_bot] 撤回失败: {e}")
+            logger.warning(f"[jmcomic_bot] OneBot 发送失败: {e}")
+
+        # 方法2：如果 OneBot 没拿到 message_id，用 event.send() 兜底
+        if message_id is None:
+            try:
+                result = await event.send(chain)
+                if isinstance(result, dict):
+                    message_id = result.get('message_id')
+                elif hasattr(result, 'message_id'):
+                    message_id = result.message_id
+                logger.info(f"[jmcomic_bot] event.send 完成, result type={type(result).__name__}, message_id={message_id}")
+            except Exception as e:
+                logger.warning(f"[jmcomic_bot] event.send 失败: {e}")
+
+        # 安排撤回
+        if message_id and delay > 0:
+            if bot is None:
+                bot = getattr(event, 'bot', None)
+            if bot:
+                asyncio.create_task(self._delayed_recall(bot, message_id, delay))
+                logger.info(f"[jmcomic_bot] 已安排消息 {message_id} 在 {delay}s 后撤回")
+            else:
+                logger.warning(f"[jmcomic_bot] 未找到 bot 实例，无法撤回 message_id={message_id}")
+        elif message_id is None:
+            logger.warning("[jmcomic_bot] 无法获取 message_id，撤回不可用")
+
+    async def _delayed_recall(self, bot, message_id: int, delay: int):
+        """后台任务：延迟撤回消息"""
+        await asyncio.sleep(delay)
+        try:
+            await bot.call_action("delete_msg", message_id=message_id)
+            logger.info(f"[jmcomic_bot] ✅ 已撤回消息 {message_id}")
+        except Exception as e:
+            logger.warning(f"[jmcomic_bot] 撤回消息 {message_id} 失败: {e}")
 
     def _is_admin(self, user_id: str) -> bool:
         """判断用户是否为管理员（admin_only=False 时所有人视为管理员）"""
@@ -1040,13 +1105,14 @@ class JMComicBot(Star):
                 cover_path = await asyncio.to_thread(self._backend.get_album_cover, album_id)
                 if cover_path:
                     cover_chain = MessageChain([Comp.Image(file=cover_path)])
-                    yield event.chain_result(cover_chain.chain)
                     if self.config.get("cover_recall_enabled", False):
-                        asyncio.create_task(self._recall_last_msg_after_delay(event, self.config.get("auto_recall_delay", 60)))
+                        await self._send_with_recall(event, cover_chain, self.config.get("auto_recall_delay", 60))
+                    else:
+                        yield event.chain_result(cover_chain.chain)
 
             album = await asyncio.to_thread(self._backend.get_album, album_id)
             title = album.title if hasattr(album, 'title') else album.name
-            page_count = album.page_count if hasattr(album, 'page_count') else len(album)
+            page_count = album.page_count if (hasattr(album, 'page_count') and album.page_count) else len(album)
             yield event.plain_result(f"📖 《{title}》共 {page_count}P，下载中...")
             result = await asyncio.to_thread(self._backend.download_album, album_id)
             result_msg = _fmt_dl(result)

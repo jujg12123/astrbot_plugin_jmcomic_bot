@@ -1,6 +1,16 @@
 # 📋 JMComic Bot 更新日志
 
-## v1.11.1 (2026-06-16)
+## v1.11.2 (2026-06-16)
+
+- 🐛 修复封面预览：`JmAlbumDetail` 无 `cover_url` 属性
+  - 从第一话第一张图获取（`data_original_0`）
+  - `data_original_0` 为 None 时用 `data_original_domain` + `page_arr[0]` 构造 URL
+  - 添加详细 debug 日志
+- 🐛 修复页数不准确：`len(album)` 返回章节数，`album.page_count` 有时为 0
+  - 优先 `page_count > 0`
+  - 回退 `len(album)`
+  - 下载后从实际文件数校准
+- 🔗 metadata.yaml repo 更新为 https://github.com/jujg12123/astrbot_plugin_jmcomic_bot
 
 - 🐛 修复：不同本子 ID 返回相同内容的问题
   - 所有命令添加手动消息文本解析 fallback（防止 GreedyStr/str 参数绑定失败）
