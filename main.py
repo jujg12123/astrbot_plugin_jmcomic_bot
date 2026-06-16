@@ -1,4 +1,4 @@
-"""JMComic Bot — 禁漫天堂插件 for AstrBot（v1.11.2）
+"""JMComic Bot — 禁漫天堂插件 for AstrBot（v1.11.3）
 
 功能：
   jm <id> — 下载整本本子
@@ -157,6 +157,15 @@ def _import_jmcomic():
 # ═════════════════════════ 更新日志 ═════════════════════════
 CHANGELOG = """
 📋 **JMComic Bot 更新日志**
+
+**v1.11.3** (2026-06-16)
+- 🐛 搜索结果显示 dict repr 而非作品名：`_extract_item_info` 彻底重写
+  - ①从 `__dict__` 提取（兼容 dict 和对象内嵌 dict）
+  - ②tuple 兼容
+  - ③对象属性兜底（`oname` → `idoname` → `title` → `name`）
+  - 过滤 dict repr 垃圾值（`startswith('{')`）
+  - 调试日志：取不到标题时输出 item type + dict keys
+- 🐛 搜索报错 `'tuple' object has no attribute 'aid'`
 
 **v1.11.2** (2026-06-16)
 - 🐛 修复封面预览不发送：`JmAlbumDetail` 无 `cover_url` 属性
@@ -871,7 +880,7 @@ class JMDownloadTool(FunctionTool):
     "astrbot_plugin_jmcomic_bot",
     "custom",
     "禁漫天堂漫画下载插件 — 搜索/下载/排行/收藏，基于 jmcomic 库",
-    "1.11.2",
+    "1.11.3",
     "https://github.com/jujg12123/astrbot_plugin_jmcomic_bot",
 )
 class JMComicBot(Star):
@@ -910,12 +919,12 @@ class JMComicBot(Star):
             logged_in = self._backend.is_logged_in()
             proxy = self.config.get("proxy", "")
             logger.info(
-                f"[jmcomic_bot] v1.11.2 已就绪 | 已登录={logged_in} | "
+                f"[jmcomic_bot] v1.11.3 已就绪 | 已登录={logged_in} | "
                 f"代理={'已设置' if proxy else '无'}"
             )
         else:
             logger.warning(
-                f"[jmcomic_bot] v1.11.2 已加载（降级模式）| 错误: {self._backend_error}"
+                f"[jmcomic_bot] v1.11.3 已加载（降级模式）| 错误: {self._backend_error}"
             )
 
         # 权限与配额
@@ -1098,7 +1107,7 @@ class JMComicBot(Star):
     async def help_command(self, event: AstrMessageEvent):
         status_line = "✅ 正常" if self._backend else f"⚠️ 降级模式 ({self._backend_error})"
         yield event.plain_result(
-            f"🍶 **JMComic Bot v1.11.2**\n"
+            f"🍶 **JMComic Bot v1.11.3**\n"
             f"状态: {status_line}\n\n"
             "📥 `jm <id>` — 下载整本本子\n"
             "📥 `jmc <id>` — 下载单个章节\n"

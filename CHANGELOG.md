@@ -1,5 +1,15 @@
 # 📋 JMComic Bot 更新日志
 
+## v1.11.3 (2026-06-16)
+
+- 🐛 搜索结果显示 dict repr 而非作品名：`_extract_item_info` 彻底重写
+  - ①从 `__dict__` 提取（兼容 dict 和对象内嵌 dict）
+  - ②tuple 兼容
+  - ③对象属性兜底（`oname` → `idoname` → `title` → `name`）
+  - 过滤 dict repr 垃圾值（`startswith('{')`）
+  - 调试日志：取不到标题时输出 item type + dict keys
+- 🐛 搜索报错 `'tuple' object has no attribute 'aid'`
+
 ## v1.11.2 (2026-06-16)
 
 - 🐛 修复封面预览不发送：`JmAlbumDetail` 无 `cover_url` 属性
