@@ -605,16 +605,30 @@ class JMBackend:
 
 # ═════════════════════════ 格式化 ═════════════════════════
 
+def _extract_item_info(item):
+    """从搜索结果中提取 id, title, author, page_count。兼容 JmSearchAlbum 对象和 tuple。"""
+    if isinstance(item, tuple):
+        # tuple 格式: (id, title, author, ...) 或 (id, name, ...)
+        aid = str(item[0]) if len(item) > 0 else '?'
+        title = str(item[1])[:40] if len(item) > 1 else '?'
+        author = str(item[2])[:15] if len(item) > 2 else ''
+        pages = '?'
+    else:
+        aid = str(item.id if hasattr(item, 'id') else (item.aid if hasattr(item, 'aid') else '?'))
+        title = (item.title if hasattr(item, 'title') else (item.name if hasattr(item, 'name') else '?'))[:40]
+        author = str(item.author if hasattr(item, 'author') else '')[:15]
+        pages = str(item.page_count) if hasattr(item, 'page_count') and item.page_count else (
+            str(len(item)) if hasattr(item, '__len__') else '?')
+    return aid, title, author, pages
+
+
 def _fmt_search_for_llm(results: list, keyword: str) -> str:
     """LLM 工具输出：纯信息，无装饰线（参考 web-search 的 _format_for_llm）"""
     if not results:
         return f'未找到关于 "{keyword}" 的搜索结果。'
     lines = [f'搜索 "{keyword}" 的结果（共 {len(results)} 条）：', '']
     for i, a in enumerate(results, 1):
-        aid = a.id if hasattr(a, 'id') else a.aid
-        title = (a.title if hasattr(a, 'title') else a.name)[:40]
-        author = (a.author if hasattr(a, 'author') else '')[:15]
-        pages = len(a) if hasattr(a, '__len__') else '?'
+        aid, title, author, pages = _extract_item_info(a)
         lines.append(f'{i}. [{aid}] {title} — {author} ({pages}P)')
     return '\n'.join(lines)
 
@@ -625,10 +639,7 @@ def _fmt_search(results: list, keyword: str, page: int = 1) -> str:
         return f"🔍 搜索「{keyword}」无结果"
     lines = [f"🔍 搜索「{keyword}」(第{page}页):", "-" * 30]
     for i, a in enumerate(results[:10], 1):
-        aid = a.id if hasattr(a, 'id') else a.aid
-        title = (a.title if hasattr(a, 'title') else a.name)[:40]
-        author = (a.author if hasattr(a, 'author') else "")[:15]
-        pages = len(a) if hasattr(a, '__len__') else "?"
+        aid, title, author, pages = _extract_item_info(a)
         lines.append(f"{i:2d}. [{aid}] {title} — {author} ({pages}P)")
         lines.append(f"   📥 jm {aid}")
     lines.append("-" * 30)
@@ -653,10 +664,7 @@ def _fmt_rank(rankings: list, page: int = 1) -> str:
         return "📊 暂无排行数据"
     lines = [f"📊 排行榜 (第{page}页):", "-" * 30]
     for i, a in enumerate(rankings[:15], 1):
-        aid = a.id if hasattr(a, 'id') else a.aid
-        title = (a.title if hasattr(a, 'title') else a.name)[:25]
-        author = (a.author if hasattr(a, 'author') else "")[:15]
-        pages = len(a) if hasattr(a, '__len__') else "?"
+        aid, title, author, pages = _extract_item_info(a)
         lines.append(f"{i:2d}. [{aid}] {title} — {author} ({pages}P)")
     lines.append("-" * 30)
     return "\n".join(lines)
@@ -668,9 +676,7 @@ def _fmt_fav(folder, page: int = 1) -> str:
         return "📌 本页无收藏"
     lines = [f"📌 收藏夹 (第{page}页):", "-" * 30]
     for i, a in enumerate(albums[:15], 1):
-        aid = a.id if hasattr(a, 'id') else a.aid
-        title = (a.title if hasattr(a, 'title') else a.name)[:25]
-        author = (a.author if hasattr(a, 'author') else "")[:15]
+        aid, title, author, pages = _extract_item_info(a)
         lines.append(f"{i:2d}. [{aid}] {title} — {author}")
     lines.append("-" * 30)
     return "\n".join(lines)
