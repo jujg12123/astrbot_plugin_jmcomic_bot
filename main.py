@@ -640,11 +640,21 @@ def _extract_item_info(item):
         # 页数
         pages = str(d.get('page_count', d.get('pages', d.get('count', '?'))))
 
-    # tuple
+    # tuple: 元素可能是 (id, dict, ...) 而非 (id, str, ...)
     if isinstance(item, tuple):
         aid = str(item[0]) if len(item) > 0 else aid
-        title = str(item[1]) if len(item) > 1 else title
-        author = str(item[2]) if len(item) > 2 else author
+        # item[1] 可能是 str 或 dict
+        v1 = item[1] if len(item) > 1 else None
+        if isinstance(v1, dict):
+            title = str(v1.get('name', v1.get('title', '?')))
+            author = str(v1.get('author', v1.get('authors', '')))
+            pages = str(v1.get('page_count', v1.get('pages', '?')))
+        elif isinstance(v1, str):
+            title = v1
+        else:
+            title = str(v1) if v1 is not None else title
+        if len(item) > 2 and author in ('?', 'None', ''):
+            author = str(item[2])
 
     # 对象属性覆盖（过滤掉 dict repr 垃圾值）
     for attr in ('oname', 'idoname', 'title', 'name'):
