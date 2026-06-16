@@ -1,0 +1,6 @@
+name: astrbot_plugin_jmcomic_bot
+display_name: JMComic Bot
+desc: 禁漫天堂漫画下载插件 — 搜索/下载/排行/收藏，基于 jmcomic 库，LLM 可主动调用搜索和下载
+version: v1.11.2
+author: jujg12123
+repo: https://github.com/jujg12123/astrbot_plugin_jmcomic_bot

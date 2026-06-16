@@ -1,0 +1,1 @@
+# JMComic Bot core module

@@ -1,0 +1,131 @@
+{
+  "jm_username": {
+    "description": "JM 账号用户名（登录后可用收藏夹等功能）",
+    "type": "string",
+    "default": "",
+    "hint": "JMComic 网站账号用户名"
+  },
+  "jm_password": {
+    "description": "JM 账号密码",
+    "type": "string",
+    "default": "",
+    "secret": true,
+    "hint": "JMComic 网站账号密码"
+  },
+  "download_dir": {
+    "description": "下载目录（相对于 AstrBot 数据目录）",
+    "type": "string",
+    "default": "downloads"
+  },
+  "image_suffix": {
+    "description": "图片格式",
+    "type": "string",
+    "default": ".jpg",
+    "options": [".jpg", ".png", ".webp"],
+    "hint": "下载图片的格式转换"
+  },
+  "client_type": {
+    "description": "客户端类型",
+    "type": "string",
+    "default": "api",
+    "options": ["api", "html"],
+    "hint": "api 模式兼容性好，html 模式效率高但限制 IP 地区"
+  },
+  "max_photos": {
+    "description": "单次下载最大图片数",
+    "type": "int",
+    "default": 200,
+    "min": 1,
+    "max": 9999,
+    "hint": "超过此数量的本子将只下载前 N 张"
+  },
+  "pack_format": {
+    "description": "打包格式",
+    "type": "string",
+    "default": "zip",
+    "options": ["zip", "pdf", "none"],
+    "hint": "zip=压缩包, pdf=PDF文件, none=不打包"
+  },
+  "zip_password": {
+    "description": "打包密码（留空=不加密，设置后 AES-256 加密防风控）",
+    "type": "string",
+    "default": "",
+    "secret": true,
+    "hint": "AES 加密可防止腾讯扫描压缩包内容导致无法下载"
+  },
+  "filename_show_password": {
+    "description": "文件名显示密码",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后在文件名末尾添加 #PWxxx 提示（仅当设置了密码时生效）"
+  },
+  "send_cover_preview": {
+    "description": "发送封面预览",
+    "type": "bool",
+    "default": true,
+    "hint": "下载前发送漫画封面图片预览"
+  },
+  "cover_recall_enabled": {
+    "description": "封面消息自动撤回",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后封面预览消息会自动撤回（仅支持 QQ/NapCat 平台）"
+  },
+  "auto_recall_enabled": {
+    "description": "文件消息自动撤回",
+    "type": "bool",
+    "default": false,
+    "hint": "发送文件后自动撤回（仅支持 QQ/NapCat 平台）"
+  },
+  "auto_recall_delay": {
+    "description": "撤回延迟（秒）",
+    "type": "int",
+    "default": 60,
+    "min": 5,
+    "max": 300,
+    "hint": "发送后多少秒自动撤回，建议 30-120"
+  },
+  "auto_delete_after_send": {
+    "description": "发送后自动删除本地文件",
+    "type": "bool",
+    "default": true,
+    "hint": "发送文件后是否自动删除本地文件以节省空间"
+  },
+  "proxy": {
+    "description": "HTTP 代理地址（如 http://127.0.0.1:7890）",
+    "type": "string",
+    "default": "",
+    "hint": "需代理才能访问时填写"
+  },
+  "admin_only": {
+    "description": "仅管理员可用",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后仅 admin_list 中的用户可使用命令"
+  },
+  "admin_list": {
+    "description": "管理员 ID 列表（逗号分隔）",
+    "type": "string",
+    "default": "",
+    "hint": "仅在 admin_only=true 时生效，如 '123456,789012'"
+  },
+  "enabled_groups": {
+    "description": "启用的群号列表（逗号分隔，留空=全部启用）",
+    "type": "string",
+    "default": "",
+    "hint": "私聊不受此限制，如 '123456789,987654321'"
+  },
+  "daily_download_limit": {
+    "description": "每日下载次数限制（0=不限，管理员豁免）",
+    "type": "int",
+    "default": 0,
+    "min": 0,
+    "max": 999,
+    "hint": "限制每用户每日下载次数，管理员不受此限制"
+  },
+  "debug": {
+    "description": "调试模式",
+    "type": "bool",
+    "default": false
+  }
+}
