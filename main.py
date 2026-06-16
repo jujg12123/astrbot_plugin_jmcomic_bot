@@ -606,16 +606,23 @@ class JMBackend:
 # ═════════════════════════ 格式化 ═════════════════════════
 
 def _extract_item_info(item):
-    """从搜索结果中提取 id, title, author, page_count。兼容 JmSearchAlbum 对象和 tuple。"""
-    if isinstance(item, tuple):
-        # tuple 格式: (id, title, author, ...) 或 (id, name, ...)
+    """从搜索结果中提取 id, title, author, page_count。兼容对象、dict 和 tuple。"""
+    # dict: {'id': ..., 'name': ..., 'author': ...}
+    if isinstance(item, dict):
+        aid = str(item.get('id', item.get('aid', item.get('album_id', '?'))))
+        title = str(item.get('name', item.get('title', '?')))[:40]
+        author = str(item.get('author', item.get('authors', '')))[:15]
+        pages = str(item.get('page_count', item.get('pages', item.get('count', '?'))))
+    # tuple: (id, title, author, ...)
+    elif isinstance(item, tuple):
         aid = str(item[0]) if len(item) > 0 else '?'
         title = str(item[1])[:40] if len(item) > 1 else '?'
         author = str(item[2])[:15] if len(item) > 2 else ''
         pages = '?'
+    # object: JmSearchAlbum / JmAlbumDetail
     else:
         aid = str(item.id if hasattr(item, 'id') else (item.aid if hasattr(item, 'aid') else '?'))
-        title = (item.title if hasattr(item, 'title') else (item.name if hasattr(item, 'name') else '?'))[:40]
+        title = str(item.title if hasattr(item, 'title') else (item.name if hasattr(item, 'name') else '?'))[:40]
         author = str(item.author if hasattr(item, 'author') else '')[:15]
         pages = str(item.page_count) if hasattr(item, 'page_count') and item.page_count else (
             str(len(item)) if hasattr(item, '__len__') else '?')
