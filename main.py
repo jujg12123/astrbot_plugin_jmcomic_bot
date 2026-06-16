@@ -616,41 +616,52 @@ def _extract_item_info(item):
     """从搜索结果中提取 id, title, author, page_count。兼容对象、dict 和 tuple。"""
     aid = title = author = pages = '?'
 
-    # 尝试作为 dict 处理（包括对象中内嵌的 __dict__）
+    # 尝试获取底层数据 dict（对象用 __dict__，dict 直接用自身）
     d = item if isinstance(item, dict) else getattr(item, '__dict__', None)
     if isinstance(d, dict):
-        aid = str(d.get('id', d.get('aid', d.get('album_id', '?'))))
-        title = str(d.get('name', d.get('title', '?')))
+        aid = str(d.get('id', d.get('aid', d.get('album_id', d.get('photo_id', '?')))))
+        # 尝试多种可能的标题 key
+        for tk in ('name', 'title', 'orig_name', 'caption', 'description'):
+            v = d.get(tk)
+            if v and isinstance(v, str) and not v.startswith('{'):
+                title = v
+                break
+        # 作者
         author = str(d.get('author', d.get('authors', '')))
+        # 页数
         pages = str(d.get('page_count', d.get('pages', d.get('count', '?'))))
 
-    # 尝试作为 tuple 处理
+    # tuple
     if isinstance(item, tuple):
         aid = str(item[0]) if len(item) > 0 else aid
         title = str(item[1]) if len(item) > 1 else title
         author = str(item[2]) if len(item) > 2 else author
 
-    # 尝试从对象属性获取（覆盖 dict/tuple 中没取到的）
-    if aid in (None, '?', 'None'):
-        aid = str(getattr(item, 'id', getattr(item, 'aid', getattr(item, 'album_id', '?'))))
-    if title in (None, '?', 'None') or title.startswith('{'):
-        t = getattr(item, 'title', None) or getattr(item, 'name', None) or getattr(item, 'oname', None)
-        if t is not None:
-            t = str(t)
-            if not t.startswith('{'):
-                title = t
-    if author in (None, '?', 'None', ''):
-        a = getattr(item, 'author', None) or getattr(item, 'authors', None)
-        if a is not None:
-            a = str(a)
-            if not a.startswith('{'):
-                author = a
-    if pages in (None, '?', 'None', '0'):
+    # 对象属性覆盖（过滤掉 dict repr 垃圾值）
+    for attr in ('oname', 'idoname', 'title', 'name'):
+        if title in ('?', 'None') or title.startswith('{'):
+            v = getattr(item, attr, None)
+            if v and isinstance(v, str) and not v.startswith('{'):
+                title = v
+                break
+    if author in ('?', 'None', ''):
+        for attr in ('author', 'authors'):
+            v = getattr(item, attr, None)
+            if v and isinstance(v, str):
+                author = v
+                break
+    if pages in ('?', 'None', '0'):
         p = getattr(item, 'page_count', None)
         if p and p != 0:
             pages = str(p)
         elif hasattr(item, '__len__'):
             pages = str(len(item))
+
+    # 最终兜底：如果 title 还是垃圾值，记录日志
+    if title.startswith('{') or title == '?':
+        cls = type(item).__name__
+        keys = list(d.keys())[:10] if isinstance(d, dict) else 'N/A'
+        logger.warning(f"[jmcomic_bot] _extract_item_info 无法提取标题: type={cls}, keys={keys}, d={dict(list(d.items())[:5]) if isinstance(d, dict) else 'N/A'}")
 
     title = str(title)[:40]
     author = str(author)[:15]
