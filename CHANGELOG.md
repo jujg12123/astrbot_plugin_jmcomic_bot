@@ -2,17 +2,21 @@
 
 ## v1.11.2 (2026-06-16)
 
-- 🐛 修复封面预览：`JmAlbumDetail` 无 `cover_url` 属性
+- 🐛 修复封面预览不发送：`JmAlbumDetail` 无 `cover_url` 属性
   - 从第一话第一张图获取（`data_original_0`）
   - `data_original_0` 为 None 时用 `data_original_domain` + `page_arr[0]` 构造 URL
-  - 添加详细 debug 日志
+  - 封面下载添加 Referer 头防 403
+- 🐛 修复封面自动撤回不生效
+  - 改用 OneBot API 直接发送 + `delete_msg` 撤回（参考 jm_cosmos）
+  - `event.send()` 兜底
 - 🐛 修复页数不准确：`len(album)` 返回章节数，`album.page_count` 有时为 0
-  - 优先 `page_count > 0`
-  - 回退 `len(album)`
-  - 下载后从实际文件数校准
+  - 优先 `page_count > 0`，回退 `len(album)`，下载后从实际文件数校准
+- 🐛 修复 PDF 加密保存报错：`user_password` → `user_pw`（pymupdf 标准参数名）
+- 🐛 修复不同 ID 返回相同内容：所有命令添加手动消息解析 fallback + 日志
+- 🐛 修复搜索报错 `'tuple' object has no attribute 'aid'`
+- 🐛 修复搜索结果显示 dict repr 而非标题：`_extract_item_info` 增加 dict 类型兼容
 - 🔗 metadata.yaml repo 更新为 https://github.com/jujg12123/astrbot_plugin_jmcomic_bot
-
-- 🐛 修复：不同本子 ID 返回相同内容的问题
+- 👤 git 提交作者修正为 jujg12123
   - 所有命令添加手动消息文本解析 fallback（防止 GreedyStr/str 参数绑定失败）
   - 所有命令添加 `logger.info` 日志记录收到的参数
   - JMBackend.download_album 添加日志记录 API 实际返回的 album ID（用于排查 API 缓存）
